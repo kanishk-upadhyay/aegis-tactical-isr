@@ -5,13 +5,17 @@
  * dynamic sensor ground swath polygons, and simulated sensor PiP HUD.
  */
 
-// Global State
+// Global State & CARTO API Configuration
+const CARTO_API_KEY = "cb1_53kv_1_538e2a794fe27d3ea2627d69";
+
 let map = null;
 let ws = null;
 let audioEnabled = false;
 let audioCtx = null;
 
-// Map Layers
+// Map & Basemap Layers
+let currentBasemap = 'dark';
+let basemapLayers = {};
 let uavMarker = null;
 let swathPolygon = null;
 let tracksGroup = null;
@@ -91,7 +95,7 @@ function logEvent(text) {
   }
 }
 
-// Initialize Leaflet Tactical Map
+// Initialize Leaflet Tactical Map with Authenticated CARTO Basemaps
 function initMap() {
   // Center on Northern Tactical Theatre (Ladakh sector)
   map = L.map('map', {
@@ -101,13 +105,28 @@ function initMap() {
     attributionControl: false,
   });
 
-  // Dark military tiles
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    subdomains: 'abcd',
-  }).addTo(map);
+  // Authenticated CARTO & Satellite Basemap Layers
+  basemapLayers = {
+    dark: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`, {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; CARTO &copy; OpenStreetMap',
+    }),
+    voyager: L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`, {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: '&copy; CARTO &copy; OpenStreetMap',
+    }),
+    satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: '&copy; Esri &copy; Maxar, Earthstar Geographics',
+    }),
+  };
 
-  // Layer Groups
+  // Add default tactical dark basemap
+  basemapLayers['dark'].addTo(map);
+
+  // Tactical Layer Groups
   tracksGroup = L.layerGroup().addTo(map);
   trailsGroup = L.layerGroup().addTo(map);
   drCirclesGroup = L.layerGroup().addTo(map);
@@ -115,6 +134,25 @@ function initMap() {
   // Zoom control top right
   L.control.zoom({ position: 'topright' }).addTo(map);
 }
+
+// Switch Basemap Layer (CARTO Dark, CARTO Voyager, Satellite)
+function switchBasemap(mode) {
+  if (!map || !basemapLayers[mode]) return;
+
+  if (basemapLayers[currentBasemap]) {
+    map.removeLayer(basemapLayers[currentBasemap]);
+  }
+  basemapLayers[mode].addTo(map);
+  basemapLayers[mode].bringToBack();
+  currentBasemap = mode;
+
+  document.querySelectorAll('.btn-bm').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.getElementById(`btn-bm-${mode === 'satellite' ? 'sat' : mode}`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  logEvent(`Basemap switched to: ${mode.toUpperCase()} (CARTO Key Authenticated)`);
+}
+window.switchBasemap = switchBasemap;
 
 // Custom Marker Icons
 function createUavIcon(headingDeg) {

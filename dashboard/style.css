@@ -520,6 +520,56 @@ body.tactical-hud-body {
 }
 .threat-pill.dead-reckon .badge-count { background: #ff55aa; color: #fff; }
 
+/* Basemap Tactical Switcher */
+.map-basemap-switcher {
+  position: absolute;
+  bottom: 125px;
+  left: 20px;
+  background: rgba(8, 14, 22, 0.92);
+  border: 1px solid var(--border-tactical);
+  padding: 6px 10px;
+  border-radius: 3px;
+  font-size: 10px;
+  z-index: 650;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.switcher-label {
+  color: var(--color-cyan);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.btn-bm {
+  background: var(--bg-card);
+  border: 1px solid var(--border-tactical);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 3px 7px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.btn-bm:hover {
+  border-color: var(--color-cyan);
+  color: #ffffff;
+}
+
+.btn-bm.active {
+  background: rgba(0, 243, 255, 0.2);
+  border-color: var(--color-cyan);
+  color: var(--color-cyan);
+  font-weight: bold;
+  box-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+}
+
 /* Legend card */
 .map-legend-card {
   position: absolute;
