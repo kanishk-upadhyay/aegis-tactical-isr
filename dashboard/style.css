@@ -828,3 +828,119 @@ body.tactical-hud-body {
   from { transform: rotate(45deg) scale(0.9); }
   to { transform: rotate(45deg) scale(1.2); }
 }
+
+/* --------------------------------------------------------------------------
+   S-Tier Upgrade: Air Defence Engagement HUD & DEM Terrain Styling
+   -------------------------------------------------------------------------- */
+.wez-status-pill {
+  border-color: rgba(255, 183, 0, 0.4);
+}
+
+.dot-wez {
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-amber);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--color-amber);
+}
+
+.wez-armed-text {
+  color: var(--color-amber);
+  font-weight: 700;
+}
+
+.intercept-alert-pill {
+  border-color: var(--color-red) !important;
+  background: rgba(255, 42, 42, 0.2) !important;
+  animation: pulse-border-red 1s infinite alternate;
+}
+
+.dot-intercept {
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-red);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--color-red);
+  animation: pulse-live 0.8s infinite;
+}
+
+@keyframes pulse-border-red {
+  from { border-color: rgba(255, 42, 42, 0.4); box-shadow: 0 0 5px rgba(255, 42, 42, 0.2); }
+  to { border-color: rgba(255, 42, 42, 1); box-shadow: 0 0 15px rgba(255, 42, 42, 0.6); }
+}
+
+/* Leaflet WEZ Rings SVG animations */
+.wez-pulsing-svg {
+  animation: wez-ring-pulse 2s infinite ease-in-out;
+}
+
+@keyframes wez-ring-pulse {
+  0% { stroke-opacity: 0.9; stroke-width: 2.5; fill-opacity: 0.12; }
+  50% { stroke-opacity: 0.4; stroke-width: 4; fill-opacity: 0.22; }
+  100% { stroke-opacity: 0.9; stroke-width: 2.5; fill-opacity: 0.12; }
+}
+
+/* Vector Warning Pulse */
+.vector-alert-pulse {
+  animation: vector-pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes vector-pulse {
+  0% { stroke-opacity: 1; stroke-width: 2.5; }
+  50% { stroke-opacity: 0.4; stroke-width: 3.5; }
+  100% { stroke-opacity: 1; stroke-width: 2.5; }
+}
+
+/* Map Tooltips */
+.tactical-tooltip {
+  background: rgba(6, 10, 16, 0.94) !important;
+  border: 1px solid var(--border-tactical) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  border-radius: 2px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.8) !important;
+}
+
+/* Target card extensions */
+.target-card.intercept-breach {
+  border-left-color: var(--color-red) !important;
+  border-color: rgba(255, 42, 42, 0.6) !important;
+  background: rgba(45, 12, 18, 0.9) !important;
+  box-shadow: 0 0 12px rgba(255, 42, 42, 0.35);
+  animation: card-alert-pulse 1.5s infinite alternate;
+}
+
+@keyframes card-alert-pulse {
+  from { box-shadow: 0 0 6px rgba(255, 42, 42, 0.2); }
+  to { box-shadow: 0 0 16px rgba(255, 42, 42, 0.6); }
+}
+
+.card-intercept-banner {
+  background: rgba(255, 42, 42, 0.25);
+  border: 1px solid var(--color-red);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 9px;
+  text-align: center;
+  padding: 2px 4px;
+  border-radius: 2px;
+  letter-spacing: 0.8px;
+  margin-top: 3px;
+}
+
+.target-card-mid.terrain-info {
+  color: var(--color-cyan);
+  font-size: 9.5px;
+  border-top: 1px dashed rgba(30, 51, 71, 0.6);
+  padding-top: 2px;
+  margin-top: 2px;
+}
+
+/* Legend NATO icons */
+.symbol-sam-battery { color: var(--color-cyan); font-size: 12px; }
+.symbol-wez-inner { color: var(--color-red); font-size: 12px; }
+.symbol-wez-outer { color: var(--color-cyan); font-size: 12px; }
+.symbol-vector-proj { color: var(--color-amber); font-size: 13px; font-weight: bold; }
+.symbol-intercept-warn { color: var(--color-red); font-size: 12px; }

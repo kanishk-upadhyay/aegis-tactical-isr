@@ -38,8 +38,8 @@ if _venv_python.exists() and sys.executable != str(_venv_python):
         os.execv(str(_venv_python), [str(_venv_python)] + sys.argv)
 
 from models.detector import MultiSpectralDetector
-from models.tracker import ByteTracker
-from telemetry.georeference import GeoreferenceEngine
+from models.tracker import ByteTracker, AirDefenceAsset
+from telemetry.georeference import GeoreferenceEngine, MountainTerrainDEM
 from telemetry.dead_reckoning import DeadReckoningEngine
 
 
@@ -72,6 +72,25 @@ class TacticalDemoMission:
             hfov_deg=63.7,
             vfov_deg=38.5,
         )
+        # 30m Mountain Terrain DEM for Ladakh Theatre
+        self.dem = MountainTerrainDEM(
+            center_lat=34.1526,
+            center_lon=77.5771,
+            base_elevation_msl=3900.0,
+            peak_amplitude_m=850.0,
+        )
+        self.georef.dem = self.dem
+
+        # Simulated Air Defence SAM Battery / Forward Operating Base
+        self.ad_asset = AirDefenceAsset(
+            callsign="AKASH-BATTERY-01",
+            lat=34.1520,
+            lon=77.5760,
+            alt_m=3950.0,
+            mez_radius_m=2500.0,
+            ewz_radius_m=5000.0,
+        )
+
         self.detector = MultiSpectralDetector()
         self.tracker = ByteTracker(
             track_high_thresh=0.60,
@@ -227,7 +246,16 @@ class TacticalDemoMission:
                 gimbal_yaw_deg=gimbal_yaw,
             )
             if res is not None:
-                st.update_georeference(res["lat"], res["lon"], res["alt"], dt=self.dt)
+                st.update_georeference(
+                    res["lat"],
+                    res["lon"],
+                    res["alt"],
+                    dt=self.dt,
+                    terrain_elevation_msl=res.get("terrain_elevation_msl"),
+                    terrain_slope_deg=res.get("terrain_slope_deg"),
+                )
+                cpa_info = st.compute_cpa(self.ad_asset)
+
                 self.dead_reckoner.register_or_update(
                     track_id=st.track_id,
                     lat=res["lat"],
@@ -249,6 +277,11 @@ class TacticalDemoMission:
                     "speed_kmh": st.speed_kmh,
                     "heading": st.heading_deg,
                     "uncertainty_m": st.uncertainty_radius_m,
+                    "cpa_m": cpa_info.get("cpa_distance_m"),
+                    "tcpa_s": cpa_info.get("time_to_cpa_sec"),
+                    "dist_asset_m": cpa_info.get("distance_to_asset_m"),
+                    "intercept_warning": cpa_info.get("intercept_warning", False),
+                    "slope_deg": res.get("terrain_slope_deg", 0.0),
                     "status": "OPTICAL_LOCK",
                 })
 
@@ -256,6 +289,13 @@ class TacticalDemoMission:
         missing_ids = list(set(self.dead_reckoner.tracks.keys()) - tracked_ids)
         dr_results = self.dead_reckoner.step_dead_reckoning(missing_ids, self.dt)
         for tid, dr in dr_results.items():
+            r_earth = 6378137.0
+            lat_mid = math.radians((self.ad_asset.lat + dr["lat"]) / 2.0)
+            dr_dn = math.radians(dr["lat"] - self.ad_asset.lat) * r_earth
+            dr_de = math.radians(dr["lon"] - self.ad_asset.lon) * (r_earth * math.cos(lat_mid))
+            dr_dist = math.hypot(dr_dn, dr_de)
+            dr_slope = self.dem.get_slope_deg(dr["lat"], dr["lon"])
+
             output_tracks.append({
                 "track_id": tid,
                 "class_name": "ARMORED_VEHICLE",
@@ -268,6 +308,11 @@ class TacticalDemoMission:
                 "speed_kmh": dr["speed_kmh"],
                 "heading": (math.degrees(math.atan2(dr["ve"], dr["vn"])) + 360.0) % 360.0,
                 "uncertainty_m": dr["uncertainty_m"],
+                "cpa_m": round(dr_dist, 1),
+                "tcpa_s": 0.0,
+                "dist_asset_m": round(dr_dist, 1),
+                "intercept_warning": bool(dr_dist <= self.ad_asset.mez_radius_m),
+                "slope_deg": dr_slope,
                 "status": "DEAD_RECKONING (SMOKE SCREEN)",
             })
 
@@ -319,20 +364,21 @@ def run_simulation(num_frames: int, fps: float, modality: str, quiet: bool) -> N
                 )
 
                 if step % 10 == 0 or smoke:
-                    print("\033[94m+----+--------------------+----------+----------+------------+------------+---------+----------+-----------------------+\033[0m")
-                    print("\033[94m| ID | CLASS              | IFF      | THREAT   | LATITUDE   | LONGITUDE  | SPD KM/H| UNCERT(m)| STATUS                |\033[0m")
-                    print("\033[94m+----+--------------------+----------+----------+------------+------------+---------+----------+-----------------------+\033[0m")
+                    print("\033[94m+----+--------------------+----------+----------+------------+------------+---------+-----------+----------------------+-----------------------+\033[0m")
+                    print("\033[94m| ID | CLASS              | IFF      | THREAT   | LATITUDE   | LONGITUDE  | ELEV(m) | SPD KM/H  | CPA TO AD BATTERY    | INTERCEPT WARNING     |\033[0m")
+                    print("\033[94m+----+--------------------+----------+----------+------------+------------+---------+-----------+----------------------+-----------------------+\033[0m")
                     for trk in tracks:
                         iff_color = "\033[91m" if trk["iff"] == "HOSTILE" else "\033[92m"
-                        status_color = "\033[95m" if "DEAD" in trk["status"] else "\033[96m"
+                        cpa_val = f"{trk['cpa_m']:.0f}m ({trk['tcpa_s']:.0f}s)" if trk.get("cpa_m") is not None else "N/A"
+                        warn_badge = "\033[91m▲ CRITICAL BREACH\033[0m" if trk.get("intercept_warning") else "\033[92m● WEZ CLEAR\033[0m"
                         print(
                             f"| {trk['track_id']:02d} | {trk['class_name']:<18} | "
                             f"{iff_color}{trk['iff']:<8}\033[0m | "
                             f"{trk['threat']:<8} | {trk['lat']:10.5f} | {trk['lon']:10.5f} | "
-                            f"{trk['speed_kmh']:7.1f} | ±{trk['uncertainty_m']:6.1f}m | "
-                            f"{status_color}{trk['status']:<21}\033[0m |"
+                            f"{trk['alt']:7.0f} | {trk['speed_kmh']:7.1f}   | "
+                            f"{cpa_val:<20} | {warn_badge:<21} |"
                         )
-                    print("\033[94m+----+--------------------+----------+----------+------------+------------+---------+----------+-----------------------+\033[0m\n")
+                    print("\033[94m+----+--------------------+----------+----------+------------+------------+---------+-----------+----------------------+-----------------------+\033[0m\n")
 
             time.sleep(1.0 / fps)
 

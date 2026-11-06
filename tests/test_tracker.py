@@ -5,6 +5,7 @@ Tests Kalman box state estimation, ByteTrack association continuity,
 ID switch prevention, low-confidence occlusion recovery, and dead reckoning.
 """
 
+import math
 import pytest
 import numpy as np
 from models.detector import Detection
@@ -136,3 +137,77 @@ def test_dead_reckoning_uncertainty_growth():
         heading_deg=0.0,
     )
     assert dr.tracks[1].uncertainty_radius_m == 5.0
+
+
+def test_air_defence_cpa_head_on_intercept():
+    """
+    Validates Kinematic Intercept and Closest Point of Approach (CPA) calculations.
+    A hostile UAV heading directly towards the Air Defence battery must trigger INTERCEPT_WARNING.
+    """
+    from models.tracker import STrack, AirDefenceAsset
+
+    battery = AirDefenceAsset(
+        callsign="AKASH-BATTERY-01",
+        lat=34.1520,
+        lon=77.5760,
+        alt_m=3950.0,
+        mez_radius_m=2500.0,
+        ewz_radius_m=5000.0,
+    )
+
+    det = Detection(
+        bbox=[100.0, 100.0, 150.0, 140.0],
+        score=0.95,
+        class_id=0,
+        class_name="DRONE",
+        modality="FLIR",
+    )
+    track = STrack(det)
+
+    # Position target 3500m North of battery, heading South (180 deg) at 108 km/h (30 m/s)
+    r_earth = 6378137.0
+    d_north = 3500.0
+    target_lat = battery.lat + (d_north / r_earth) * (180.0 / math.pi)
+    target_lon = battery.lon
+
+    track.current_lat = target_lat
+    track.current_lon = target_lon
+    track.current_alt = 4200.0
+    track.speed_kmh = 108.0
+    track.heading_deg = 180.0  # Heading directly South into the battery
+
+    cpa = track.compute_cpa(battery)
+
+    # Head-on intercept: CPA distance should be close to 0 meters
+    assert cpa["intercept_warning"] is True
+    assert pytest.approx(cpa["cpa_distance_m"], abs=10.0) == 0.0
+    # Expected time-to-CPA: 3500m / (30 m/s) = 116.7 seconds
+    assert pytest.approx(cpa["time_to_cpa_sec"], abs=1.0) == (3500.0 / 30.0)
+    assert cpa["warning_level"] in ("WARNING", "INTERCEPT_IMMINENT")
+
+
+def test_air_defence_cpa_diverging_target():
+    """
+    Validates that a hostile target flying away from the defended asset does not
+    generate a false closing warning.
+    """
+    from models.tracker import STrack, AirDefenceAsset
+
+    battery = AirDefenceAsset(callsign="AKASH-BATTERY-01", lat=34.1520, lon=77.5760)
+    det = Detection(bbox=[100.0, 100.0, 150.0, 140.0], score=0.95, class_id=0, class_name="DRONE", modality="FLIR")
+    track = STrack(det)
+
+    # Target 3000m North of battery, flying further North (0 deg) away from battery
+    r_earth = 6378137.0
+    track.current_lat = battery.lat + (3000.0 / r_earth) * (180.0 / math.pi)
+    track.current_lon = battery.lon
+    track.current_alt = 4200.0
+    track.speed_kmh = 108.0
+    track.heading_deg = 0.0  # Heading away
+
+    cpa = track.compute_cpa(battery)
+
+    assert cpa["intercept_warning"] is False
+    assert cpa["time_to_cpa_sec"] == 0.0
+    assert cpa["warning_level"] == "CLEAR"
+

@@ -28,7 +28,8 @@
     <div class="header-center">
       <div class="c2-status-pill"><span class="dot-live"></span> C2 LINK: SECURE (AES-256)</div>
       <div class="c2-status-pill"><span class="pill-label">SECTOR:</span> NORTHERN / LADAKH THEATRE</div>
-      <div class="c2-status-pill"><span class="pill-label">AIR DEFENCE STATUS:</span> <span class="threat-critical-text">DEFCON 2</span></div>
+      <div class="c2-status-pill wez-status-pill"><span class="dot-wez"></span> <span class="pill-label">WEZ (AKASH SAM):</span> <span id="wez-state-text" class="wez-armed-text">ARMED (2,500m)</span></div>
+      <div class="c2-status-pill intercept-alert-pill" id="hud-intercept-alert" style="display:none;"><span class="dot-intercept"></span> <span class="pill-label">ALERT:</span> <span id="intercept-alert-count" class="threat-critical-text">0 BREACHES</span></div>
     </div>
 
     <div class="header-right">
@@ -168,6 +169,10 @@
       <!-- Map Legend Floating Card -->
       <div class="map-legend-card">
         <div class="legend-header">NATO SYMBOLOGY (MIL-STD-2525)</div>
+        <div class="legend-item"><span class="symbol-sam-battery">▲</span> Air Defence Asset (Akash SAM Battery)</div>
+        <div class="legend-item"><span class="symbol-wez-inner">◎</span> Weapon Engagement Zone (WEZ - 2,500m)</div>
+        <div class="legend-item"><span class="symbol-wez-outer">◌</span> Early Warning Radar Zone (5,000m)</div>
+        <div class="legend-item"><span class="symbol-vector-proj">➔</span> 30s Kinematic Vector Projection</div>
         <div class="legend-item"><span class="symbol-hostile-drone">◆</span> Hostile Aerial Drone (Counter-UAV Target)</div>
         <div class="legend-item"><span class="symbol-hostile-ground">◆</span> Hostile Armored Vehicle / Convoy</div>
         <div class="legend-item"><span class="symbol-dead-reckon">◌</span> Sensor Occluded (Dead Reckoning Active)</div>

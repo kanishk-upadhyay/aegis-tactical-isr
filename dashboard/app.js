@@ -21,6 +21,9 @@ let swathPolygon = null;
 let tracksGroup = null;
 let trailsGroup = null;
 let drCirclesGroup = null;
+let adAssetGroup = null;
+let wezRingsGroup = null;
+let vectorArrowsGroup = null;
 
 // Clocks & UI
 function updateClocks() {
@@ -130,6 +133,9 @@ function initMap() {
   tracksGroup = L.layerGroup().addTo(map);
   trailsGroup = L.layerGroup().addTo(map);
   drCirclesGroup = L.layerGroup().addTo(map);
+  adAssetGroup = L.layerGroup().addTo(map);
+  wezRingsGroup = L.layerGroup().addTo(map);
+  vectorArrowsGroup = L.layerGroup().addTo(map);
 
   // Zoom control top right
   L.control.zoom({ position: 'topright' }).addTo(map);
@@ -185,6 +191,24 @@ function createTargetIcon(className, iffStatus, isOccluded) {
     `,
     iconSize: [22, 22],
     iconAnchor: [11, 11],
+  });
+}
+
+function createAdAssetIcon(name) {
+  return L.divIcon({
+    className: 'ad-asset-custom-marker',
+    html: `
+      <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+        <div style="width:26px; height:26px; background:rgba(0, 243, 255, 0.25); border:2px solid #00f3ff; border-radius:4px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px #00f3ff;">
+          <span style="color:#00f3ff; font-size:14px; font-weight:bold;">▲</span>
+        </div>
+        <div style="margin-top:2px; font-size:9px; font-weight:bold; color:#00f3ff; background:rgba(0,10,20,0.92); padding:1px 4px; border:1px solid #00f3ff; border-radius:2px; white-space:nowrap; letter-spacing:0.5px;">
+          ${name}
+        </div>
+      </div>
+    `,
+    iconSize: [30, 44],
+    iconAnchor: [15, 22],
   });
 }
 
@@ -302,12 +326,27 @@ function renderTacticalPicture(payload) {
   document.getElementById('bar-gimbal-tilt').style.width = `${tiltPct}%`;
   document.getElementById('bar-gimbal-pan').style.width = `${panPct}%`;
 
-  // Threat Barometer
+  // Air Defence Asset & Threat Summary
+  const adAsset = payload.air_defence_asset;
+  const warningsActive = payload.intercept_warnings_active || 0;
+
+  // Threat Barometer & WEZ Alert Pills
   document.getElementById('count-critical').textContent = threatSummary.CRITICAL || 0;
   document.getElementById('count-high').textContent = threatSummary.HIGH || 0;
   document.getElementById('count-medium').textContent = threatSummary.MEDIUM || 0;
   const drCount = tracks.filter(t => t.status === 'DEAD_RECKONING').length;
   document.getElementById('count-dr').textContent = drCount;
+
+  const alertPill = document.getElementById('hud-intercept-alert');
+  const alertCount = document.getElementById('intercept-alert-count');
+  if (alertPill && alertCount) {
+    if (warningsActive > 0) {
+      alertPill.style.display = 'flex';
+      alertCount.textContent = `${warningsActive} BREACH${warningsActive > 1 ? 'ES' : ''}`;
+    } else {
+      alertPill.style.display = 'none';
+    }
+  }
 
   // 2. Render UAV Marker
   const uavLatLng = [uav.lat, uav.lon];
@@ -335,10 +374,60 @@ function renderTacticalPicture(payload) {
     }
   }
 
-  // 4. Render Tracks
+  // 4. Render Air Defence Battery Asset & Weapon Engagement Zones (WEZ)
+  adAssetGroup.clearLayers();
+  wezRingsGroup.clearLayers();
+
+  if (adAsset && adAsset.lat && adAsset.lon) {
+    const adLatLng = [adAsset.lat, adAsset.lon];
+
+    // Air Defence Battery Marker
+    const adMarker = L.marker(adLatLng, {
+      icon: createAdAssetIcon(adAsset.name || 'AKASH-BATTERY-01'),
+    }).addTo(adAssetGroup);
+
+    adMarker.bindPopup(`
+      <div style="font-family:'Share Tech Mono',monospace; font-size:11px; color:#e1edf7; background:#0a1018; padding:8px; border:1px solid #00f3ff; min-width:260px;">
+        <div style="font-weight:bold; color:#00f3ff; margin-bottom:4px;">AIR DEFENCE BATTERY: ${adAsset.name}</div>
+        <div>SECTOR: NORTHERN / LADAKH THEATRE</div>
+        <div>POSITION: ${adAsset.lat.toFixed(6)}°N, ${adAsset.lon.toFixed(6)}°E</div>
+        <div>ALTITUDE: ${adAsset.alt_m ? Math.round(adAsset.alt_m) : 3420} m MSL</div>
+        <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #1e3347;">
+          <div>MISSILE ENGAGEMENT ZONE (MEZ): <span style="color:#ff2a2a; font-weight:bold;">${adAsset.engagement_radius_m} m</span></div>
+          <div>EARLY WARNING PERIMETER: <span style="color:#00f3ff;">${adAsset.warning_radius_m} m</span></div>
+          <div>FIRE CONTROL STATUS: <span style="color:#00ff66; font-weight:bold;">ARMED & INTERFACE READY</span></div>
+        </div>
+      </div>
+    `);
+
+    // Outer Early Warning Zone (5,000m)
+    L.circle(adLatLng, {
+      radius: adAsset.warning_radius_m || 5000,
+      color: '#00e5ff',
+      weight: 1.5,
+      dashArray: '6, 6',
+      fillColor: '#00e5ff',
+      fillOpacity: 0.04,
+    }).addTo(wezRingsGroup);
+
+    // Inner Weapon Engagement Zone / MEZ (2,500m)
+    const isPerimeterBreached = warningsActive > 0;
+    L.circle(adLatLng, {
+      radius: adAsset.engagement_radius_m || 2500,
+      color: isPerimeterBreached ? '#ff2a2a' : '#ffb700',
+      weight: isPerimeterBreached ? 2.5 : 2.0,
+      dashArray: '8, 4',
+      fillColor: isPerimeterBreached ? '#ff2a2a' : '#ffb700',
+      fillOpacity: isPerimeterBreached ? 0.15 : 0.06,
+      className: isPerimeterBreached ? 'wez-pulsing-svg' : '',
+    }).addTo(wezRingsGroup);
+  }
+
+  // 5. Render Active Tracks, Vector Arrows & Trajectory Trails
   tracksGroup.clearLayers();
   trailsGroup.clearLayers();
   drCirclesGroup.clearLayers();
+  vectorArrowsGroup.clearLayers();
 
   const targetQueue = document.getElementById('target-queue');
   if (targetQueue) targetQueue.innerHTML = '';
@@ -346,22 +435,78 @@ function renderTacticalPicture(payload) {
   tracks.forEach((trk) => {
     const isOccluded = trk.status === 'DEAD_RECKONING';
     const trkLatLng = [trk.lat, trk.lon];
+    const isInterceptWarning = trk.intercept_warning || trk.warning_level === 'ENGAGEMENT_CRITICAL';
 
     // Marker
     const marker = L.marker(trkLatLng, {
       icon: createTargetIcon(trk.class_name, trk.iff_status, isOccluded),
     }).addTo(tracksGroup);
 
+    // 30-Second Kinematic Vector Arrow Projection
+    if (trk.projected_30s_pos && trk.projected_30s_pos.length >= 2) {
+      const projLatLng = [trk.projected_30s_pos[0], trk.projected_30s_pos[1]];
+      const vecColor = isInterceptWarning ? '#ff2a2a' : (trk.iff_status === 'HOSTILE' ? '#ff9900' : '#00f3ff');
+
+      // Projected flight path line
+      L.polyline([trkLatLng, projLatLng], {
+        color: vecColor,
+        weight: isInterceptWarning ? 2.5 : 1.8,
+        dashArray: isInterceptWarning ? '6, 3' : '4, 4',
+        opacity: 0.9,
+      }).addTo(vectorArrowsGroup);
+
+      // Terminal 30s projection point marker
+      L.circleMarker(projLatLng, {
+        radius: isInterceptWarning ? 4 : 3,
+        color: vecColor,
+        fillColor: vecColor,
+        fillOpacity: 0.85,
+        weight: 1,
+      }).addTo(vectorArrowsGroup).bindTooltip(`+30s Proj: ${trk.speed_kmh} km/h`, {
+        permanent: false,
+        direction: 'top',
+        className: 'tactical-tooltip',
+      });
+    }
+
+    // Terrain & CPA Formatting
+    const elevText = trk.terrain_elevation_msl !== null && trk.terrain_elevation_msl !== undefined
+      ? `${Math.round(trk.terrain_elevation_msl)} m MSL (Slope: ${trk.terrain_slope_deg ? trk.terrain_slope_deg.toFixed(1) : '0.0'}°)`
+      : 'N/A';
+
+    const cpaText = trk.cpa_distance_m !== null && trk.cpa_distance_m !== undefined
+      ? `${Math.round(trk.cpa_distance_m)} m ${trk.time_to_cpa_sec !== null && trk.time_to_cpa_sec >= 0 ? '(in ' + Math.round(trk.time_to_cpa_sec) + 's)' : '(DIVERGING)'}`
+      : 'N/A';
+
+    const distToAdText = trk.distance_to_asset_m !== null && trk.distance_to_asset_m !== undefined
+      ? `${Math.round(trk.distance_to_asset_m)} m (BRG: ${trk.bearing_to_asset_deg !== null ? Math.round(trk.bearing_to_asset_deg) : '0'}°)`
+      : 'N/A';
+
+    let alertBadgeHtml = '';
+    if (isInterceptWarning) {
+      alertBadgeHtml = `
+        <div style="margin-top:6px; padding:4px 6px; background:rgba(255, 42, 42, 0.25); border:1px solid #ff2a2a; border-radius:2px; color:#ff2a2a; font-weight:bold; text-align:center;">
+          ⚠ DEFENSIVE PERIMETER BREACH (${trk.warning_level})
+        </div>
+      `;
+    }
+
     // Popup
     marker.bindPopup(`
-      <div style="font-family:'Share Tech Mono',monospace; font-size:11px; color:#e1edf7; background:#0a1018; padding:8px; border:1px solid #1e3347;">
+      <div style="font-family:'Share Tech Mono',monospace; font-size:11px; color:#e1edf7; background:#0a1018; padding:8px; border:1px solid ${isInterceptWarning ? '#ff2a2a' : '#1e3347'}; min-width:250px;">
         <div style="font-weight:bold; color:#00f3ff; margin-bottom:4px;">TARGET TRACK #${trk.track_id} // ${trk.class_name}</div>
         <div>IFF STATUS: <span style="color:${trk.iff_status === 'HOSTILE' ? '#ff2a2a' : '#00ff66'}">${trk.iff_status}</span></div>
         <div>THREAT PRIORITY: <span style="color:#ffb700">${trk.threat_priority} (${trk.threat_score}/100)</span></div>
         <div>GROUNDSPEED: ${trk.speed_kmh} km/h | HEADING: ${trk.heading_deg}°</div>
         <div>COORDINATES: ${trk.lat.toFixed(5)}°N, ${trk.lon.toFixed(5)}°E</div>
-        <div>UNCERTAINTY: ±${trk.uncertainty_m} m</div>
-        <div>TRACK STATUS: <span style="color:#00f3ff">${trk.status}</span></div>
+        <div style="margin-top:4px; padding-top:4px; border-top:1px dashed #1e3347;">
+          <div>TERRAIN ELEVATION: <span style="color:#00f3ff">${elevText}</span></div>
+          <div>CPA TO AD BATTERY: <span style="color:${isInterceptWarning ? '#ff2a2a' : '#ffb700'}; font-weight:bold;">${cpaText}</span></div>
+          <div>BATTERY RANGE: ${distToAdText}</div>
+          <div>WARNING LEVEL: <span style="color:${trk.warning_level === 'ENGAGEMENT_CRITICAL' ? '#ff2a2a' : (trk.warning_level === 'ADVISORY' ? '#ffb700' : '#00ff66')}">${trk.warning_level || 'NOMINAL'}</span></div>
+          <div>TRACK STATUS: <span style="color:#00f3ff">${trk.status}</span></div>
+        </div>
+        ${alertBadgeHtml}
       </div>
     `);
 
@@ -388,8 +533,18 @@ function renderTacticalPicture(payload) {
 
     // Target Queue Card in Sidebar
     if (targetQueue) {
+      const elevCardStr = trk.terrain_elevation_msl ? `${Math.round(trk.terrain_elevation_msl)}m` : '--';
+      const slopeCardStr = trk.terrain_slope_deg ? `${Math.round(trk.terrain_slope_deg)}°` : '0°';
+      const cpaCardStr = trk.cpa_distance_m !== null && trk.cpa_distance_m !== undefined
+        ? `${Math.round(trk.cpa_distance_m)}m`
+        : 'DIV';
+      const timeCpaCardStr = trk.time_to_cpa_sec !== null && trk.time_to_cpa_sec >= 0
+        ? `(${Math.round(trk.time_to_cpa_sec)}s)`
+        : '';
+
       const card = document.createElement('div');
-      card.className = `target-card ${trk.threat_priority.toLowerCase()} ${isOccluded ? 'dead-reckon' : ''}`;
+      const warningClass = isInterceptWarning ? 'intercept-breach' : '';
+      card.className = `target-card ${trk.threat_priority.toLowerCase()} ${isOccluded ? 'dead-reckon' : ''} ${warningClass}`;
       card.innerHTML = `
         <div class="target-card-top">
           <span class="target-id-tag">#${trk.track_id} ${trk.class_name}</span>
@@ -398,12 +553,18 @@ function renderTacticalPicture(payload) {
         <div class="target-card-mid">
           <span>SPD: ${trk.speed_kmh} km/h</span>
           <span>HDG: ${trk.heading_deg}°</span>
+          <span>CPA: ${cpaCardStr} ${timeCpaCardStr}</span>
+        </div>
+        <div class="target-card-mid terrain-info">
+          <span>ELEV: ${elevCardStr} MSL</span>
+          <span>SLOPE: ${slopeCardStr}</span>
           <span>THREAT: ${trk.threat_score}</span>
         </div>
         <div class="target-card-bot">
           <span>${trk.lat.toFixed(4)}°N, ${trk.lon.toFixed(4)}°E</span>
           <span>UNCERT: ±${trk.uncertainty_m}m</span>
         </div>
+        ${isInterceptWarning ? '<div class="card-intercept-banner">⚠ WEZ INTERCEPT ALERT</div>' : ''}
       `;
       card.addEventListener('click', () => {
         map.panTo(trkLatLng);
@@ -413,8 +574,10 @@ function renderTacticalPicture(payload) {
     }
   });
 
-  // Sound ping on new high/critical threat
-  if (tracks.length > previousTrackCount && tracks.some(t => t.threat_priority === 'CRITICAL')) {
+  // Sound ping on new high/critical threat or intercept warning
+  if (warningsActive > 0) {
+    playRadarPing(1400, 0.2);
+  } else if (tracks.length > previousTrackCount && tracks.some(t => t.threat_priority === 'CRITICAL')) {
     playRadarPing(920, 0.15);
   }
   previousTrackCount = tracks.length;

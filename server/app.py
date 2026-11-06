@@ -24,8 +24,8 @@ from fastapi.staticfiles import StaticFiles
 import yaml
 
 from models.detector import MultiSpectralDetector, Detection
-from models.tracker import ByteTracker, STrack
-from telemetry.georeference import GeoreferenceEngine
+from models.tracker import ByteTracker, STrack, AirDefenceAsset
+from telemetry.georeference import GeoreferenceEngine, MountainTerrainDEM
 from telemetry.dead_reckoning import DeadReckoningEngine
 from server.schemas import (
     UAVTelemetry,
@@ -137,6 +137,24 @@ class TacticalMissionSimulator:
         self.base_alt_agl = 900.0   # meters AGL
         self.orbit_radius_m = 1200.0
         self.orbit_speed_kmh = 135.0
+
+        # Terrain & Air Defence Assets
+        self.dem = MountainTerrainDEM(
+            center_lat=self.center_lat,
+            center_lon=self.center_lon,
+            base_elevation_msl=3900.0,
+            peak_amplitude_m=850.0,
+        )
+        georef_engine.dem = self.dem
+
+        self.ad_asset = AirDefenceAsset(
+            callsign="AKASH-BATTERY-01",
+            lat=34.1520,
+            lon=77.5760,
+            alt_m=3950.0,
+            mez_radius_m=2500.0,
+            ewz_radius_m=5000.0,
+        )
 
         self.uav_heading = 0.0
         self.uav_roll = 12.0  # Bank angle in orbit
@@ -311,7 +329,16 @@ class TacticalMissionSimulator:
             )
 
             if geo_pt is not None:
-                st.update_georeference(geo_pt["lat"], geo_pt["lon"], geo_pt["alt"], dt=self.dt)
+                st.update_georeference(
+                    geo_pt["lat"],
+                    geo_pt["lon"],
+                    geo_pt["alt"],
+                    dt=self.dt,
+                    terrain_elevation_msl=geo_pt.get("terrain_elevation_msl"),
+                    terrain_slope_deg=geo_pt.get("terrain_slope_deg"),
+                )
+                cpa_info = st.compute_cpa(self.ad_asset)
+
                 dead_reckoner.register_or_update(
                     track_id=st.track_id,
                     lat=geo_pt["lat"],
@@ -339,6 +366,15 @@ class TacticalMissionSimulator:
                         modality=self.sensor_mode,  # type: ignore
                         status="TRACKED",
                         trajectory=[[round(p[0], 6), round(p[1], 6)] for p in st.trajectory_history[-15:]],
+                        cpa_distance_m=cpa_info.get("cpa_distance_m"),
+                        time_to_cpa_sec=cpa_info.get("time_to_cpa_sec"),
+                        distance_to_asset_m=cpa_info.get("distance_to_asset_m"),
+                        bearing_to_asset_deg=cpa_info.get("bearing_to_asset_deg"),
+                        intercept_warning=cpa_info.get("intercept_warning", False),
+                        warning_level=cpa_info.get("warning_level", "CLEAR"),
+                        projected_30s_pos=cpa_info.get("projected_30s_pos"),
+                        terrain_elevation_msl=geo_pt.get("terrain_elevation_msl"),
+                        terrain_slope_deg=geo_pt.get("terrain_slope_deg"),
                     )
                 )
 
@@ -348,6 +384,18 @@ class TacticalMissionSimulator:
         dr_results = dead_reckoner.step_dead_reckoning(missing_ids, self.dt)
 
         for tid, dr in dr_results.items():
+            # Estimate CPA for dead reckoning track
+            r_earth = 6378137.0
+            lat_mid = math.radians((self.ad_asset.lat + dr["lat"]) / 2.0)
+            dr_dn = math.radians(dr["lat"] - self.ad_asset.lat) * r_earth
+            dr_de = math.radians(dr["lon"] - self.ad_asset.lon) * (r_earth * math.cos(lat_mid))
+            dr_dist = math.hypot(dr_dn, dr_de)
+            dr_bearing = (math.degrees(math.atan2(dr_de, dr_dn)) + 360.0) % 360.0
+
+            # 30-second projection for dead-reckoned target
+            dr_proj_lat = dr["lat"] + (dr["vn"] * 30.0 / r_earth) * (180.0 / math.pi)
+            dr_proj_lon = dr["lon"] + (dr["ve"] * 30.0 / (r_earth * math.cos(lat_mid))) * (180.0 / math.pi)
+
             tactical_tracks.append(
                 TacticalTrackPoint(
                     track_id=tid,
@@ -365,6 +413,15 @@ class TacticalMissionSimulator:
                     modality=self.sensor_mode,  # type: ignore
                     status="DEAD_RECKONING",
                     trajectory=[],
+                    cpa_distance_m=round(dr_dist, 1),
+                    time_to_cpa_sec=0.0,
+                    distance_to_asset_m=round(dr_dist, 1),
+                    bearing_to_asset_deg=round(dr_bearing, 1),
+                    intercept_warning=bool(dr_dist <= self.ad_asset.mez_radius_m),
+                    warning_level="CRITICAL_BREACH" if dr_dist <= self.ad_asset.mez_radius_m else "CLEAR",
+                    projected_30s_pos=[round(dr_proj_lat, 6), round(dr_proj_lon, 6)],
+                    terrain_elevation_msl=self.dem.get_elevation(dr["lat"], dr["lon"]),
+                    terrain_slope_deg=self.dem.get_slope_deg(dr["lat"], dr["lon"]),
                 )
             )
 
@@ -431,6 +488,8 @@ class TacticalMissionSimulator:
             timestamp=time.time(),
         )
 
+        intercept_count = sum(1 for trk in tactical_tracks if trk.intercept_warning)
+
         payload = TacticalStreamPayload(
             timestamp=time.time(),
             uav_telemetry=uav_telemetry,
@@ -438,6 +497,16 @@ class TacticalMissionSimulator:
             camera_footprint_geojson=footprint_feature,
             tracks_geojson=tracks_collection,
             threat_summary=threat_summary,
+            air_defence_asset={
+                "callsign": self.ad_asset.callsign,
+                "lat": self.ad_asset.lat,
+                "lon": self.ad_asset.lon,
+                "alt_m": self.ad_asset.alt_m,
+                "mez_radius_m": self.ad_asset.mez_radius_m,
+                "ewz_radius_m": self.ad_asset.ewz_radius_m,
+                "kill_radius_m": self.ad_asset.kill_radius_m,
+            },
+            intercept_warnings_active=intercept_count,
         )
 
         return payload.model_dump()

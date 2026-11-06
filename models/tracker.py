@@ -11,14 +11,27 @@ Key Algorithms:
 """
 
 from __future__ import annotations
+from dataclasses import dataclass, field
 from enum import IntEnum
 import math
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from models.detector import Detection
+
+
+@dataclass
+class AirDefenceAsset:
+    """Simulated Air Defence Battery or Forward Operating Base."""
+    callsign: str = "AKASH-BATTERY-01"
+    lat: float = 34.1520
+    lon: float = 77.5760
+    alt_m: float = 3950.0
+    mez_radius_m: float = 2500.0   # Missile Engagement Zone (Weapon Engagement Zone - WEZ)
+    ewz_radius_m: float = 5000.0   # Early Warning Acquisition Zone
+    kill_radius_m: float = 1000.0  # CIWS / Point-Defence Kill Zone
 
 
 class TrackState(IntEnum):
@@ -151,11 +164,22 @@ class STrack:
         self.heading_deg: float = 0.0
         self.trajectory_history: List[Tuple[float, float]] = []
 
-        # Tactical assessment
+        # Tactical assessment & Air Defence Intercept
         self.iff_status: str = "UNKNOWN"
         self.threat_priority: str = "LOW"
         self.threat_score: int = 20
         self.uncertainty_radius_m: float = 3.0
+
+        # Terrain & CPA Intercept Kinematics
+        self.terrain_elevation_msl: Optional[float] = None
+        self.terrain_slope_deg: Optional[float] = None
+        self.cpa_distance_m: Optional[float] = None
+        self.time_to_cpa_sec: Optional[float] = None
+        self.distance_to_asset_m: Optional[float] = None
+        self.bearing_to_asset_deg: Optional[float] = None
+        self.intercept_warning: bool = False
+        self.warning_level: str = "CLEAR"
+        self.projected_30s_pos: Optional[List[float]] = None
 
         self._assign_initial_iff(detection.class_name)
 
@@ -198,7 +222,15 @@ class STrack:
         elif self.state == TrackState.LOST:
             self.state = TrackState.TRACKED
 
-    def update_georeference(self, lat: float, lon: float, alt: float, dt: float = 0.1) -> None:
+    def update_georeference(
+        self,
+        lat: float,
+        lon: float,
+        alt: float,
+        dt: float = 0.1,
+        terrain_elevation_msl: Optional[float] = None,
+        terrain_slope_deg: Optional[float] = None,
+    ) -> None:
         """Updates geographic position and calculates real ground speed / heading."""
         if self.current_lat is not None and self.current_lon is not None and dt > 0.001:
             r_earth = 6378137.0
@@ -217,6 +249,11 @@ class STrack:
         self.current_lat = lat
         self.current_lon = lon
         self.current_alt = alt
+        if terrain_elevation_msl is not None:
+            self.terrain_elevation_msl = terrain_elevation_msl
+        if terrain_slope_deg is not None:
+            self.terrain_slope_deg = terrain_slope_deg
+
         self.trajectory_history.append((lat, lon))
         if len(self.trajectory_history) > 40:
             self.trajectory_history.pop(0)
@@ -226,6 +263,108 @@ class STrack:
             if self.speed_kmh > 60.0:
                 self.threat_priority = "CRITICAL"
                 self.threat_score = min(100, int(90 + (self.speed_kmh / 10.0)))
+
+    def compute_cpa(self, asset: AirDefenceAsset) -> Dict[str, Any]:
+        """
+        Computes Kinematic Intercept and Closest Point of Approach (CPA)
+        relative to a defended Air Defence asset (SAM Battery / FOB).
+        """
+        if self.current_lat is None or self.current_lon is None:
+            return {
+                "cpa_distance_m": None,
+                "time_to_cpa_sec": None,
+                "distance_to_asset_m": None,
+                "bearing_to_asset_deg": None,
+                "intercept_warning": False,
+                "warning_level": "CLEAR",
+                "projected_30s_pos": None,
+                "closing_speed_kmh": 0.0,
+            }
+
+        r_earth = 6378137.0
+        lat_mid = math.radians((asset.lat + self.current_lat) / 2.0)
+        dn = math.radians(self.current_lat - asset.lat) * r_earth
+        de = math.radians(self.current_lon - asset.lon) * (r_earth * math.cos(lat_mid))
+
+        dist_curr = math.hypot(dn, de)
+        bearing_from_asset = (math.degrees(math.atan2(de, dn)) + 360.0) % 360.0
+
+        speed_ms = self.speed_kmh / 3.6
+        h_rad = math.radians(self.heading_deg)
+        vn = speed_ms * math.cos(h_rad)
+        ve = speed_ms * math.sin(h_rad)
+        v_sq = vn * vn + ve * ve
+
+        # 30-second kinematic projected forward position
+        dn_30 = dn + vn * 30.0
+        de_30 = de + ve * 30.0
+        proj_lat = asset.lat + (dn_30 / r_earth) * (180.0 / math.pi)
+        proj_lon = asset.lon + (de_30 / (r_earth * math.cos(lat_mid))) * (180.0 / math.pi)
+        self.projected_30s_pos = [round(proj_lat, 6), round(proj_lon, 6)]
+
+        if v_sq < 0.25:
+            # Target is stationary / hovering (< 1.8 km/h)
+            t_cpa = 0.0
+            d_cpa = dist_curr
+            is_closing = False
+            closing_speed_kmh = 0.0
+        else:
+            # Analytical CPA minimization: t_cpa = - (r . v) / ||v||^2
+            dot_product = dn * vn + de * ve
+            t_cpa_calc = -dot_product / v_sq
+            closing_speed_kmh = float(-(dot_product / max(1.0, dist_curr)) * 3.6)
+
+            if t_cpa_calc < 0.0:
+                # Target is moving away from asset
+                t_cpa = 0.0
+                d_cpa = dist_curr
+                is_closing = False
+            else:
+                t_cpa = float(t_cpa_calc)
+                dn_cpa = dn + vn * t_cpa
+                de_cpa = de + ve * t_cpa
+                d_cpa = float(math.hypot(dn_cpa, de_cpa))
+                is_closing = True
+
+        # Military Engagement Envelope Warning Logic
+        intercept_warning = False
+        warning_level = "CLEAR"
+
+        if self.iff_status == "HOSTILE":
+            if dist_curr <= asset.mez_radius_m:
+                intercept_warning = True
+                warning_level = "CRITICAL_BREACH"
+            elif is_closing and d_cpa <= asset.mez_radius_m:
+                if t_cpa <= 45.0:
+                    intercept_warning = True
+                    warning_level = "INTERCEPT_IMMINENT"
+                elif t_cpa <= 120.0:
+                    intercept_warning = True
+                    warning_level = "WARNING"
+                else:
+                    warning_level = "MONITORING"
+            elif is_closing and dist_curr <= asset.ewz_radius_m:
+                warning_level = "EARLY_WARNING"
+            elif not is_closing:
+                warning_level = "CLEAR"
+
+        self.cpa_distance_m = round(d_cpa, 1)
+        self.time_to_cpa_sec = round(t_cpa, 1)
+        self.distance_to_asset_m = round(dist_curr, 1)
+        self.bearing_to_asset_deg = round(bearing_from_asset, 1)
+        self.intercept_warning = intercept_warning
+        self.warning_level = warning_level
+
+        return {
+            "cpa_distance_m": self.cpa_distance_m,
+            "time_to_cpa_sec": self.time_to_cpa_sec,
+            "distance_to_asset_m": self.distance_to_asset_m,
+            "bearing_to_asset_deg": self.bearing_to_asset_deg,
+            "intercept_warning": self.intercept_warning,
+            "warning_level": self.warning_level,
+            "projected_30s_pos": self.projected_30s_pos,
+            "closing_speed_kmh": round(closing_speed_kmh, 1),
+        }
 
     @property
     def bbox(self) -> List[float]:
