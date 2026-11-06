@@ -141,7 +141,7 @@ class TacticalMissionSimulator:
         self.uav_heading = 0.0
         self.uav_roll = 12.0  # Bank angle in orbit
         self.uav_pitch = -2.0
-        self.gimbal_pitch = -42.0  # Angled down toward sector center
+        self.gimbal_pitch = -32.0  # Angled down toward sector center
         self.gimbal_yaw = -90.0    # Looking inward toward center of orbit
         self.sensor_mode = "RGB"
 

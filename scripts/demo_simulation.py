@@ -147,7 +147,7 @@ class TacticalDemoMission:
         uav_roll = 10.0
         uav_pitch = -1.5
 
-        gimbal_pitch = -45.0
+        gimbal_pitch = -32.0
         gimbal_yaw = (math.degrees(math.atan2(-de, -dn)) - uav_heading + 360.0) % 360.0
         if gimbal_yaw > 180.0:
             gimbal_yaw -= 360.0
