@@ -36,3 +36,7 @@ jobs:
       - name: Execute Standalone Simulation Smoke Test
         run: |
           python scripts/demo_simulation.py --frames 20 --quiet
+
+      - name: Run Quantitative Mission Benchmark Suite
+        run: |
+          python scripts/benchmark_scenarios.py --export-markdown reports/ci_benchmark.md

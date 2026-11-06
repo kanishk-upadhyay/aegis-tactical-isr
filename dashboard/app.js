@@ -380,21 +380,24 @@ function renderTacticalPicture(payload) {
 
   if (adAsset && adAsset.lat && adAsset.lon) {
     const adLatLng = [adAsset.lat, adAsset.lon];
+    const assetCallsign = adAsset.callsign || adAsset.name || 'AKASH-BATTERY-01';
+    const mezRadius = adAsset.mez_radius_m || adAsset.engagement_radius_m || 2500;
+    const ewzRadius = adAsset.ewz_radius_m || adAsset.warning_radius_m || 5000;
 
     // Air Defence Battery Marker
     const adMarker = L.marker(adLatLng, {
-      icon: createAdAssetIcon(adAsset.name || 'AKASH-BATTERY-01'),
+      icon: createAdAssetIcon(assetCallsign),
     }).addTo(adAssetGroup);
 
     adMarker.bindPopup(`
       <div style="font-family:'Share Tech Mono',monospace; font-size:11px; color:#e1edf7; background:#0a1018; padding:8px; border:1px solid #00f3ff; min-width:260px;">
-        <div style="font-weight:bold; color:#00f3ff; margin-bottom:4px;">AIR DEFENCE BATTERY: ${adAsset.name}</div>
+        <div style="font-weight:bold; color:#00f3ff; margin-bottom:4px;">AIR DEFENCE BATTERY: ${assetCallsign}</div>
         <div>SECTOR: NORTHERN / LADAKH THEATRE</div>
         <div>POSITION: ${adAsset.lat.toFixed(6)}°N, ${adAsset.lon.toFixed(6)}°E</div>
-        <div>ALTITUDE: ${adAsset.alt_m ? Math.round(adAsset.alt_m) : 3420} m MSL</div>
+        <div>ALTITUDE: ${adAsset.alt_m ? Math.round(adAsset.alt_m) : 3950} m MSL</div>
         <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #1e3347;">
-          <div>MISSILE ENGAGEMENT ZONE (MEZ): <span style="color:#ff2a2a; font-weight:bold;">${adAsset.engagement_radius_m} m</span></div>
-          <div>EARLY WARNING PERIMETER: <span style="color:#00f3ff;">${adAsset.warning_radius_m} m</span></div>
+          <div>MISSILE ENGAGEMENT ZONE (MEZ): <span style="color:#ff2a2a; font-weight:bold;">${mezRadius} m</span></div>
+          <div>EARLY WARNING PERIMETER: <span style="color:#00f3ff;">${ewzRadius} m</span></div>
           <div>FIRE CONTROL STATUS: <span style="color:#00ff66; font-weight:bold;">ARMED & INTERFACE READY</span></div>
         </div>
       </div>
@@ -402,7 +405,7 @@ function renderTacticalPicture(payload) {
 
     // Outer Early Warning Zone (5,000m)
     L.circle(adLatLng, {
-      radius: adAsset.warning_radius_m || 5000,
+      radius: ewzRadius,
       color: '#00e5ff',
       weight: 1.5,
       dashArray: '6, 6',
@@ -413,7 +416,7 @@ function renderTacticalPicture(payload) {
     // Inner Weapon Engagement Zone / MEZ (2,500m)
     const isPerimeterBreached = warningsActive > 0;
     L.circle(adLatLng, {
-      radius: adAsset.engagement_radius_m || 2500,
+      radius: mezRadius,
       color: isPerimeterBreached ? '#ff2a2a' : '#ffb700',
       weight: isPerimeterBreached ? 2.5 : 2.0,
       dashArray: '8, 4',

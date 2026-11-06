@@ -252,7 +252,11 @@ aegis-tactical-isr/
 │   └── test_server.py            # FastAPI REST & WebSocket integration tests
 ├── scripts/
 │   ├── __init__.py
-│   └── demo_simulation.py       # One-click synthetic flight & tracking simulation
+│   ├── demo_simulation.py       # One-click synthetic flight & tracking simulation
+│   └── benchmark_scenarios.py   # Quantitative mission benchmark evaluation suite
+├── reports/
+│   └── benchmark_report.md      # Auto-generated defense benchmark scorecard
+├── Makefile                      # One-touch developer & operator command targets
 ├── Dockerfile                    # Multi-stage containerized deployment for edge mission computers
 ├── requirements.txt              # Production dependencies
 ├── .github/workflows/ci.yml      # GitHub Actions automated CI testing workflow
@@ -269,33 +273,25 @@ AEGIS is designed for **immediate evaluation**—no multi-gigabyte neural weight
 
 ### Option A: Local Python Environment (Recommended)
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/invincible/aegis-tactical-isr.git
-   cd aegis-tactical-isr
-   ```
+```bash
+# 1. Clone the repository
+git clone https://github.com/invincible/aegis-tactical-isr.git
+cd aegis-tactical-isr
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
+# 2. Install dependencies (or use `make install`)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-3. **Install production dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+# 3. Run Quantitative Mission Benchmark Suite (or use `make benchmark`)
+python scripts/benchmark_scenarios.py
 
-4. **Run the One-Click Terminal Simulation:**
-   ```bash
-   python scripts/demo_simulation.py --frames 60
-   ```
-   *Watch live UAV kinematics, ByteTrack Kalman updates, target georeferencing, and dead reckoning across combat smoke screens directly in your terminal.*
+# 4. Run One-Click Terminal Simulation (or use `make demo`)
+python scripts/demo_simulation.py --frames 60
 
-5. **Launch the Real-Time Military C2 Web Dashboard:**
-   ```bash
-   python scripts/demo_simulation.py --serve
-   ```
+# 5. Launch Real-Time Military C2 Web Dashboard (or use `make serve`)
+python scripts/demo_simulation.py --serve
+```
    Open your browser and navigate to:
    ```
    http://localhost:8000
