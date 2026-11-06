@@ -29,6 +29,14 @@ from typing import Any, Dict, List
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# Auto-bootstrap project virtual environment if run with system python
+_venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+if _venv_python.exists() and sys.executable != str(_venv_python):
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        os.execv(str(_venv_python), [str(_venv_python)] + sys.argv)
+
 from models.detector import MultiSpectralDetector
 from models.tracker import ByteTracker
 from telemetry.georeference import GeoreferenceEngine

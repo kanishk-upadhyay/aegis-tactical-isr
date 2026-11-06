@@ -555,3 +555,9 @@ async def serve_dashboard() -> Any:
     if index_file.exists():
         return FileResponse(str(index_file))
     return HTMLResponse("<h3>AEGIS Tactical ISR Server Running. Dashboard files initializing.</h3>")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=False)
+
