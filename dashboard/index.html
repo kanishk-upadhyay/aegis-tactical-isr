@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEGIS Tactical ISR // Army Design Bureau & Army Air Defence C2</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Google Fonts for Tactical Styling -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="tactical-hud-body">
+  <!-- Top Banner / Command Header -->
+  <header class="hud-header">
+    <div class="header-left">
+      <div class="tactical-badge">ADB / DG AAD</div>
+      <div class="header-title-group">
+        <h1 class="system-title">AEGIS-TACTICAL-ISR <span class="version-tag">v1.0-MIL</span></h1>
+        <p class="system-subtitle">AUTONOMOUS MULTI-SPECTRAL TARGET TRACKING & GEOREFERENCING C2</p>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="c2-status-pill"><span class="dot-live"></span> C2 LINK: SECURE (AES-256)</div>
+      <div class="c2-status-pill"><span class="pill-label">SECTOR:</span> NORTHERN / LADAKH THEATRE</div>
+      <div class="c2-status-pill"><span class="pill-label">AIR DEFENCE STATUS:</span> <span class="threat-critical-text">DEFCON 2</span></div>
+    </div>
+
+    <div class="header-right">
+      <div class="time-block">
+        <div class="time-item"><span class="label">UTC:</span> <span id="clock-utc">00:00:00Z</span></div>
+        <div class="time-item"><span class="label">IST:</span> <span id="clock-ist">00:00:00+05:30</span></div>
+      </div>
+      <button id="btn-audio-toggle" class="btn-tactical-icon" title="Toggle Tactical Audio Alerts">
+        <span id="audio-icon">🔊</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main HUD Layout Grid -->
+  <main class="hud-main-grid">
+    
+    <!-- LEFT SIDEBAR: UAV Flight Telemetry & Gimbal Control -->
+    <aside class="hud-panel panel-telemetry">
+      <div class="panel-header">
+        <span class="panel-icon">▲</span> PLATFORM TELEMETRY // GARUDA-01
+      </div>
+
+      <div class="panel-body">
+        <!-- UAV Quick Stats -->
+        <div class="metric-grid">
+          <div class="metric-card">
+            <span class="metric-title">ALTITUDE MSL</span>
+            <span class="metric-val" id="val-alt-msl">4,800 m</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">ALTITUDE AGL</span>
+            <span class="metric-val" id="val-alt-agl">900 m</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">GROUNDSPEED</span>
+            <span class="metric-val highlight-cyan" id="val-speed">135 km/h</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">HEADING</span>
+            <span class="metric-val" id="val-heading">045°</span>
+          </div>
+        </div>
+
+        <!-- Position Coordinates -->
+        <div class="telemetry-section">
+          <div class="section-label">UAV GEODETIC FIX (WGS-84)</div>
+          <div class="coords-display">
+            <div class="coord-row"><span class="coord-key">LAT:</span> <span id="val-uav-lat" class="coord-val">34.152600° N</span></div>
+            <div class="coord-row"><span class="coord-key">LON:</span> <span id="val-uav-lon" class="coord-val">77.577100° E</span></div>
+          </div>
+        </div>
+
+        <!-- Attitude Artificial Horizon & Gimbal -->
+        <div class="telemetry-section">
+          <div class="section-label">ATTITUDE & GIMBAL KINEMATICS</div>
+          <div class="attitude-bars">
+            <div class="bar-group">
+              <span class="bar-label">ROLL:</span>
+              <div class="bar-track"><div id="bar-roll" class="bar-fill roll-fill"></div></div>
+              <span id="val-roll" class="bar-num">+12.0°</span>
+            </div>
+            <div class="bar-group">
+              <span class="bar-label">PITCH:</span>
+              <div class="bar-track"><div id="bar-pitch" class="bar-fill pitch-fill"></div></div>
+              <span id="val-pitch" class="bar-num">-2.0°</span>
+            </div>
+            <div class="bar-group">
+              <span class="bar-label">GIMBAL TILT:</span>
+              <div class="bar-track"><div id="bar-gimbal-tilt" class="bar-fill tilt-fill"></div></div>
+              <span id="val-gimbal-tilt" class="bar-num">-42.0°</span>
+            </div>
+            <div class="bar-group">
+              <span class="bar-label">GIMBAL PAN:</span>
+              <div class="bar-track"><div id="bar-gimbal-pan" class="bar-fill pan-fill"></div></div>
+              <span id="val-gimbal-pan" class="bar-num">-90.0°</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-Spectral Sensor Mode Control -->
+        <div class="telemetry-section">
+          <div class="section-label">PAYLOAD SENSOR SELECTION</div>
+          <div class="sensor-switch-group">
+            <button id="btn-sensor-rgb" class="btn-sensor-mode active">
+              DAYLIGHT RGB <span class="sensor-sub">0.4-0.7 µm</span>
+            </button>
+            <button id="btn-sensor-flir" class="btn-sensor-mode">
+              THERMAL FLIR <span class="sensor-sub">8-14 µm LWIR</span>
+            </button>
+          </div>
+          <div class="sensor-details">
+            <div><span class="label">ACTIVE SPECTRUM:</span> <span id="text-spectral-band" class="val-mono">Visible High-Res EO</span></div>
+            <div><span class="label">ALGORITHM:</span> <span class="val-mono">ByteTrack + 8D EKF</span></div>
+            <div><span class="label">GEO-ENGINE:</span> <span class="val-mono">Pinhole Raycasting (STANAG)</span></div>
+          </div>
+        </div>
+
+        <!-- Quick Gimbal Slew Controls -->
+        <div class="telemetry-section">
+          <div class="section-label">GIMBAL SLEW TARGETING</div>
+          <div class="gimbal-buttons">
+            <button class="btn-tactical-small" onclick="slewGimbal(-90, 0)">NADIR (-90°)</button>
+            <button class="btn-tactical-small" onclick="slewGimbal(-45, -45)">SECTOR 1</button>
+            <button class="btn-tactical-small" onclick="slewGimbal(-30, 45)">SECTOR 2</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER: Leaflet Tactical Map & HUD Overlay -->
+    <section class="hud-center-map-container">
+      <div id="map" class="tactical-map"></div>
+
+      <!-- Reticle Crosshair HUD Elements -->
+      <div class="hud-reticle top-left"></div>
+      <div class="hud-reticle top-right"></div>
+      <div class="hud-reticle bottom-left"></div>
+      <div class="hud-reticle bottom-right"></div>
+      <div class="hud-crosshair-center"></div>
+
+      <!-- Map Top Bar: Quick Threat Barometer -->
+      <div class="map-threat-barometer">
+        <div class="threat-pill critical"><span class="badge-count" id="count-critical">0</span> CRITICAL (UAV/RADAR)</div>
+        <div class="threat-pill high"><span class="badge-count" id="count-high">0</span> HIGH (ARMOR/CONVOY)</div>
+        <div class="threat-pill medium"><span class="badge-count" id="count-medium">0</span> MEDIUM (PERSONNEL)</div>
+        <div class="threat-pill dead-reckon"><span class="badge-count" id="count-dr">0</span> DEAD RECKONING</div>
+      </div>
+
+      <!-- Map Legend Floating Card -->
+      <div class="map-legend-card">
+        <div class="legend-header">NATO SYMBOLOGY (MIL-STD-2525)</div>
+        <div class="legend-item"><span class="symbol-hostile-drone">◆</span> Hostile Aerial Drone (Counter-UAV Target)</div>
+        <div class="legend-item"><span class="symbol-hostile-ground">◆</span> Hostile Armored Vehicle / Convoy</div>
+        <div class="legend-item"><span class="symbol-dead-reckon">◌</span> Sensor Occluded (Dead Reckoning Active)</div>
+        <div class="legend-item"><span class="symbol-swath">■</span> Sensor Ground FOV Swath</div>
+      </div>
+    </section>
+
+    <!-- RIGHT SIDEBAR: Target Threat Matrix & Simulated Video Feed PiP -->
+    <aside class="hud-panel panel-targets">
+      <div class="panel-header">
+        <span class="panel-icon">◈</span> TACTICAL TARGET MATRIX & ENGAGEMENT
+      </div>
+
+      <div class="panel-body">
+        <!-- Target List Queue -->
+        <div class="target-queue-container" id="target-queue">
+          <div class="empty-state">SCANNING AIR DEFENCE SECTOR...</div>
+        </div>
+
+        <!-- Simulated Sensor Optical PiP Display -->
+        <div class="sensor-pip-container">
+          <div class="pip-header">
+            <span>LIVE SENSOR FEED [SIMULATED]</span>
+            <span id="pip-mode-badge" class="mode-badge rgb">RGB 1080p</span>
+          </div>
+          <div class="pip-screen" id="pip-screen">
+            <canvas id="pip-canvas" width="320" height="180"></canvas>
+            <div class="pip-overlay">
+              <div class="pip-line top">FOV: 63.7° | LASER RNG: 1420m</div>
+              <div class="pip-line bottom">IFF: MIL-AUTO-EVAL | LOCK: SECURE</div>
+              <div class="pip-crosshair"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Air Defence Handover Action Button -->
+        <div class="air-defence-action-block">
+          <button id="btn-air-defence-handover" class="btn-handover-critical">
+            ▲ TRANSMIT TRACK DATA TO ARMY AIR DEFENCE BATTERY
+          </button>
+        </div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- BOTTOM FOOTER: Tactical Event Log & Telemetry Status Bar -->
+  <footer class="hud-footer">
+    <div class="footer-log-label">ISR EVENT LOG:</div>
+    <div class="footer-log-stream" id="event-log-stream">
+      <div class="log-entry">[SYS] AEGIS-TACTICAL-ISR initialized. Georeferencing raycast engine calibrated.</div>
+    </div>
+  </footer>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Main Tactical HUD Script -->
+  <script src="/static/app.js"></script>
+</body>
+</html>

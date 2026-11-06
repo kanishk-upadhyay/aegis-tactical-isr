@@ -1,0 +1,65 @@
+# ==============================================================================
+# AEGIS-TACTICAL-ISR: ByteTrack & Target Association Configuration
+# Directorate General of Army Air Defence / Army Design Bureau Specification
+# ==============================================================================
+
+tracker:
+  # Primary association score threshold (high confidence detections)
+  track_high_thresh: 0.60
+
+  # Secondary association score threshold (recovers occluded / degraded targets)
+  track_low_thresh: 0.15
+
+  # Minimum detection score to instantiate a new tracklet
+  new_track_thresh: 0.70
+
+  # Maximum allowable cost distance (1.0 - IoU) for valid assignment
+  match_thresh: 0.80
+
+  # Frame persistence buffer: frames to maintain lost track before deletion
+  track_buffer: 30
+
+  # Minimum consecutive hits required to transition Candidate -> Confirmed
+  min_hits: 3
+
+kalman_filter:
+  # State vector dimensions: [x, y, a, h, vx, vy, va, vh]
+  # Process noise covariance weight for position states
+  std_weight_position: 0.05
+  # Process noise covariance weight for velocity states
+  std_weight_velocity: 0.00625
+
+dead_reckoning:
+  # Maximum duration (frames) to extrapolate position during visual blackout
+  max_prediction_frames: 60
+  # Uncertainty growth rate (meters per second of occlusion)
+  uncertainty_growth_rate_m_s: 1.85
+  # Velocity damping factor during prolonged loss of lock
+  velocity_damping_factor: 0.98
+
+tactical_priorities:
+  # Target classification to default IFF & Threat scoring
+  DRONE:
+    iff_classification: "HOSTILE"
+    base_threat_score: 95
+    air_defence_engagement_priority: "CRITICAL"
+  RADAR_AIR_DEFENCE:
+    iff_classification: "HOSTILE"
+    base_threat_score: 90
+    air_defence_engagement_priority: "CRITICAL"
+  ARMORED_VEHICLE:
+    iff_classification: "SUSPECT"
+    base_threat_score: 75
+    air_defence_engagement_priority: "HIGH"
+  CONVOY:
+    iff_classification: "HOSTILE"
+    base_threat_score: 80
+    air_defence_engagement_priority: "HIGH"
+  PERSONNEL:
+    iff_classification: "UNKNOWN"
+    base_threat_score: 40
+    air_defence_engagement_priority: "MEDIUM"
+  FRIENDLY_UAV:
+    iff_classification: "FRIENDLY"
+    base_threat_score: 0
+    air_defence_engagement_priority: "NONE"

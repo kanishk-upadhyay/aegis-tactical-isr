@@ -1,0 +1,72 @@
+# ==============================================================================
+# AEGIS-TACTICAL-ISR: Multi-Spectral Sensor & Gimbal Specifications
+# Compliant with STANAG 4609 / Indian Military UAV Electro-Optical Payloads
+# ==============================================================================
+
+sensors:
+  rgb_daylight:
+    name: "Aegis-Optix Daylight HD EO"
+    spectral_band: "0.4 - 0.7 um (Visible)"
+    resolution:
+      width: 1920
+      height: 1080
+    field_of_view_deg:
+      horizontal: 63.7
+      vertical: 38.5
+    focal_length_mm: 25.0
+    sensor_dimensions_mm:
+      width: 36.0
+      height: 20.25
+    pixel_pitch_um: 18.75
+    frame_rate_hz: 30
+    dynamic_range_db: 72.0
+
+  thermal_flir:
+    name: "Aegis-ThermaScope LWIR Uncooled Microbolometer"
+    spectral_band: "8.0 - 14.0 um (Long-Wave Infrared)"
+    resolution:
+      width: 640
+      height: 512
+    field_of_view_deg:
+      horizontal: 32.0
+      vertical: 25.8
+    focal_length_mm: 35.0
+    sensor_dimensions_mm:
+      width: 10.88
+      height: 8.70
+    pixel_pitch_um: 17.0
+    netd_sensitivity_mk: 35.0  # <35 mK Noise Equivalent Temperature Difference
+    frame_rate_hz: 30
+    palette_modes:
+      - "WHITE_HOT"
+      - "BLACK_HOT"
+      - "IRONBOW"
+
+gimbal_payload:
+  type: "3-Axis Gyro-Stabilized Electro-Optical / Infrared (EO/IR) Turret"
+  stabilization_accuracy_mrad: 0.15
+  limits:
+    pan_azimuth_deg:
+      min: -180.0
+      max: 180.0
+      continuous: true
+    tilt_elevation_deg:
+      min: -90.0   # Nadir (straight down)
+      max: 20.0    # Look-up angle for aerial counter-UAV tracking
+    roll_stabilization_deg:
+      min: -45.0
+      max: 45.0
+  maximum_angular_slew_rate_deg_s:
+    pan: 90.0
+    tilt: 90.0
+    roll: 60.0
+
+platform_reference:
+  default_operating_altitude_agl_m: 800.0
+  max_service_ceiling_msl_m: 6000.0
+  typical_groundspeed_kmh: 120.0
+  laser_rangefinder:
+    enabled: true
+    max_range_m: 8000.0
+    wavelength_nm: 1550.0  # Eye-safe military Class 1
+    accuracy_m: 1.0
