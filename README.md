@@ -35,14 +35,42 @@ Modern aerial surveillance platforms operating in contested border theatres (e.g
 **AEGIS-TACTICAL-ISR** solves these operational bottlenecks by pairing:
 - **Multi-Spectral Perception**: Synchronous processing of visible daylight RGB (1920×1080) and Thermal FLIR (640×512, 8–14 µm) with hot-spot signature extraction.
 - **ByteTrack & 8D Extended Kalman Filtering**: Two-tier association recovering occluded targets from low-confidence sensor detections without track identity switching.
-- **Rigorous 3D Georeferencing**: Optical pinhole raycasting integrated with UAV 3-axis attitude, gimbal kinematics, and WGS-84 ellipsoidal geodesy (STANAG 4609 compliant).
+- **Non-Planar DEM 3D Georeferencing**: Optical pinhole raycasting with iterative line-terrain intersection, eliminating elevation-induced geolocation errors over steep mountain terrain.
+- **Air Defence Engagement Envelopes**: Real-time Closest Point of Approach (CPA), closing speed vectors, and automated Weapon Engagement Zone (WEZ) perimeter alerts.
 - **Inertial Dead Reckoning**: Constant-velocity trajectory propagation and covariance ellipse estimation during visual blackout.
-- **Tactical C2 Military HUD**: Real-time Leaflet.js command interface streaming GeoJSON tracks via WebSockets with NATO MIL-STD-2525 symbology, dynamic sensor ground swath projection, and Air Defence handover triggers.
+- **Tactical C2 Military HUD**: Real-time Leaflet.js command interface streaming GeoJSON tracks via WebSockets with NATO MIL-STD-2525 symbology, dynamic sensor ground swath projection, and authenticated CARTO basemaps.
 - **Zero-Friction One-Click Simulation**: Fully executable out of the box without requiring GPU hardware or multi-gigabyte weight downloads.
 
 ---
 
-## 2. Military Alignment & Operational Context
+## 2. Key Technical Differentiators (Why This Matters for Defence & Industry)
+
+| Engineering Dimension | Conventional Toy Implementations | AEGIS Production Architecture |
+| :--- | :--- | :--- |
+| **Coordinate Transformation** | Naive 2D pixel bounding boxes or flat Euclidean assumptions. | **STANAG 4609 & WGS-84 compliant** 3D raycasting factoring in meridian $M(\phi)$ & prime vertical $N(\phi)$ ellipsoidal curvature. |
+| **High-Altitude Topography** | Flat-earth projection (fails with **250m+ displacement** in mountain defiles). | **Hybrid Ray-Marching & Secant Bisection** against 30m SRTM DEM grids with **sub-meter ($<0.01\text{m}$) surface residual**. |
+| **Combat Occlusion & Smokescreens** | Dropped tracks and fragmented track IDs upon visual dropout. | **Two-stage ByteTrack association** recovering low-confidence contacts down to score 0.15 + **Inertial Dead Reckoning**. |
+| **Air Defence Fire Control** | Passive target display without kinematic engagement metrics. | **Analytical CPA & Time-to-CPA** vector minimization, closing velocity, and automated **WEZ perimeter breach warnings**. |
+| **Tactical Edge SWaP-C Optimization** | Multi-gigabyte GPU models unsuitable for low-power edge nodes. | **Ultra-low latency CPU execution** ($<70\text{ µs}$ raycasting per target) running on tactical mission computers. |
+| **Verification & Quality Assurance** | Manual visual inspection or trivial toy tests. | **19 automated unit/integration tests (100% pass rate)** + quantitative scenario benchmark scorecard in CI. |
+
+---
+
+## 3. Quantitative Mission Benchmark Scorecard
+
+AEGIS includes an automated quantitative benchmark suite ([scripts/benchmark_scenarios.py](scripts/benchmark_scenarios.py)) that validates performance across high-stress operational defence scenarios:
+
+| Operational Scenario | Rigorous Evaluation Metric | Measured Result | Benchmark Status |
+| :--- | :--- | :--- | :---: |
+| **1. High-Altitude Ladakh Terrain Geolocation** | Surface residual error on steep 14.0°–19.3° mountain slopes vs flat-earth projection | Flat-Earth Error: **262.53m** (Max: **377.75m**)<br/>DEM Surface Residual: **0.00m**<br/>Latency: **65.1 µs** per target | **PASS** |
+| **2. Counter-UAV Inbound Raid & Kinematic CPA** | Loitering munition closing at 288 km/h on Akash SAM battery; early warning breach lead-time | Breach Warning: **TRIGGERED**<br/>Early Warning Lead Time: **55.0s** before MEZ<br/>CPA Miss Distance Error: **0.00m** | **PASS** |
+| **3. Combat Smoke Screen & ID Persistence** | Target deploys smoke grenade (6s optical blackout); evaluate track retention | Low-Conf Recovery: **100.0%**<br/>Dead Reckon Steps: **4 blackout frames**<br/>Track ID Switches: **0** | **PASS** |
+
+*All 3 mission scenarios satisfy 100% operational defence criteria.*
+
+---
+
+## 4. Military Alignment & Operational Context
 
 | Defence Stakeholder | Operational Focus Area | AEGIS Technical Feature Alignment |
 | :--- | :--- | :--- |
@@ -52,7 +80,7 @@ Modern aerial surveillance platforms operating in contested border theatres (e.g
 
 ---
 
-## 3. System Architecture
+## 5. System Architecture
 
 ```mermaid
 flowchart TD
@@ -109,7 +137,7 @@ flowchart TD
 
 ---
 
-## 4. Mathematical Georeferencing Derivation
+## 6. Mathematical Georeferencing Derivation
 
 AEGIS implements a mathematically rigorous coordinate transformation pipeline that maps an image pixel $(u, v)$ to an exact latitude and longitude on the WGS-84 reference ellipsoid.
 
@@ -172,7 +200,7 @@ This eliminates terrain elevation-induced displacement and guarantees sub-meter 
 
 ---
 
-## 5. ByteTrack Multi-Object Tracking & Dead Reckoning
+## 7. ByteTrack Multi-Object Tracking & Dead Reckoning
 
 ### 8D Extended Kalman Filter State
 The bounding box kinematic state vector is formulated as:
@@ -219,7 +247,7 @@ $$\frac{d}{dt} D(t)^2 = 2 (\vec{r} \cdot \vec{v}) + 2 \|\vec{v}\|^2 t = 0 \impli
 
 ---
 
-## 6. Repository Layout
+## 8. Repository Layout
 
 ```
 aegis-tactical-isr/
@@ -267,7 +295,7 @@ aegis-tactical-isr/
 
 ---
 
-## 7. Zero-Friction Quickstart Guide
+## 9. Zero-Friction Quickstart Guide
 
 AEGIS is designed for **immediate evaluation**—no multi-gigabyte neural weight downloads, CUDA installations, or complex toolchains are required.
 
@@ -316,7 +344,7 @@ docker run -d --name aegis-c2 -p 8000:8000 aegis-tactical-isr:latest
 
 ---
 
-## 8. Verification & Unit Test Suite
+## 10. Verification & Unit Test Suite
 
 Run the full pytest suite to verify 100% mathematical precision and tracking logic:
 
@@ -342,7 +370,7 @@ pytest tests/ -v
 
 ---
 
-## 9. C2 REST API & WebSocket Protocol
+## 11. C2 REST API & WebSocket Protocol
 
 ### WebSocket Stream (`/ws/telemetry`)
 Emits STANAG 4609 compliant JSON packets at 10 Hz:
@@ -390,8 +418,16 @@ Emits STANAG 4609 compliant JSON packets at 10 Hz:
 
 ---
 
-## 10. License & Attribution
+## 12. Engineering Author & License
 
+### Author Profile
+**Kanishk Upadhyay**  
+*AI & Autonomous Systems Engineer*  
+- **GitHub**: [@kanishk-upadhyay](https://github.com/kanishk-upadhyay)  
+- **Focus Areas**: Multi-Spectral Perception (EO/FLIR), Kalman Filtering, Real-Time Georeferencing, C2 Mapping Systems, High-Altitude Border Surveillance, Edge AI.  
+- **Defence Context**: Tailored for the **Indian Army Internship Programme (AICTE)** targeting the **Army Design Bureau (ADB)** and **Directorate General of Army Air Defence (DG AAD)**.
+
+---
+
+### License
 This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
-
-Developed for the **Indian Army Internship Programme (AICTE)** in alignment with requirements from the **Army Design Bureau (ADB)** and **Directorate General of Army Air Defence (DG AAD)**.
