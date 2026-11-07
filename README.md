@@ -1,6 +1,6 @@
 # AEGIS-TACTICAL-ISR: Autonomous Multi-Spectral Aerial Target Tracking, Georeferencing & C2 Mapping System
 
-[![CI Pipeline](https://github.com/invincible/aegis-tactical-isr/actions/workflows/ci.yml/badge.svg)](https://github.com/invincible/aegis-tactical-isr/actions)
+[![CI Pipeline](https://github.com/kanishk-upadhyay/aegis-tactical-isr/actions/workflows/ci.yml/badge.svg)](https://github.com/kanishk-upadhyay/aegis-tactical-isr/actions)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-brightgreen.svg)](https://www.python.org/)
 [![Target: Indian Army ADB & AAD](https://img.shields.io/badge/Defence%20Target-Army%20Design%20Bureau%20%7C%20DG%20AAD-red.svg)](#military-alignment--operational-context)
@@ -275,7 +275,7 @@ AEGIS is designed for **immediate evaluation**—no multi-gigabyte neural weight
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/invincible/aegis-tactical-isr.git
+git clone https://github.com/kanishk-upadhyay/aegis-tactical-isr.git
 cd aegis-tactical-isr
 
 # 2. Install dependencies (or use `make install`)
